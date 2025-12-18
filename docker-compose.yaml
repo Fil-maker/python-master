@@ -5,5 +5,5 @@ services:
     image: my-django-app
     ports:
       # Maps host port 80 to container port 80
-      - "8000:8000"
+      - "80:8000"
     restart: unless-stopped
