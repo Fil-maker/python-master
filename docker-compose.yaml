@@ -1,7 +1,7 @@
 services:
   # A service named 'webserver'
   webserver:
-    # Specifies the image to use, including a tag (e.g., :latest, :alpine)
+    build: .
     image: my-django-app
     ports:
       # Maps host port 80 to container port 80
