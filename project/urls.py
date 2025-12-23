@@ -27,8 +27,9 @@ router.register(r"groups", views.GroupViewSet)
 
 
 urlpatterns = [
-    path('admin/messages/', views.message_list, name='message_list'),
-    path('admin/messages/<int:message_id>/', views.message_detail, name='message_detail'),
+    path('', views.ticket_list, name='ticket_list'),
+    path('tickets/<str:ticket_id>/', views.ticket_detail, name='ticket_detail'),
+    path('tickets/bulk-action/', views.bulk_action, name='bulk_action'),
     path('admin/', admin.site.urls),
     path("api/", include(router.urls)),
     path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),

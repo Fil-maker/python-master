@@ -1,0 +1,300 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Сайдбар с фильтрами -->
+        <div class="col-md-3">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Фильтры</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" id="filter-form">
+                        <!-- Поиск -->
+                        <div class="mb-3">
+                            <input type="text" name="q" class="form-control"
+                                   placeholder="Поиск..." value="{{ current_filters.q }}">
+                        </div>
+
+                        <!-- Статус -->
+                        <div class="mb-3">
+                            <label class="form-label">Статус:</label>
+                            <select name="status" class="form-select" onchange="this.form.submit()">
+                                <option value="">Все статусы</option>
+                                {% for code, name in status_choices %}
+                                <option value="{{ code }}" {% if current_filters.status == code %}selected{% endif %}>
+                                    {{ name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Приоритет -->
+                        <div class="mb-3">
+                            <label class="form-label">Приоритет:</label>
+                            <select name="priority" class="form-select" onchange="this.form.submit()">
+                                <option value="">Все приоритеты</option>
+                                {% for code, name in priority_choices %}
+                                <option value="{{ code }}" {% if current_filters.priority == code %}selected{% endif %}>
+                                    {{ name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Ответственный -->
+                        <div class="mb-3">
+                            <label class="form-label">Ответственный:</label>
+                            <select name="assigned" class="form-select" onchange="this.form.submit()">
+                                <option value="">Все</option>
+                                <option value="unassigned" {% if current_filters.assigned == 'unassigned' %}selected{% endif %}>
+                                    Не назначены
+                                </option>
+                                <option value="me" {% if current_filters.assigned == 'me' %}selected{% endif %}>
+                                    Назначенные мне
+                                </option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">Применить</button>
+                        <a href="{% url 'ticket_list' %}" class="btn btn-outline-secondary w-100 mt-2">Сбросить</a>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Статистика -->
+            <div class="card">
+                <div class="card-header">
+                    <h5>Статистика</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Открытые
+                            <span class="badge bg-warning">{{ unread_counts.open }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Ожидают ответа
+                            <span class="badge bg-danger">{{ unread_counts.waiting }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Отвеченные
+                            <span class="badge bg-success">{{ unread_counts.answered }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Всего непрочитано
+                            <span class="badge bg-primary">{{ unread_counts.total_unread }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Основная таблица -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4>Обращения</h4>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                                data-bs-target="#bulkActionsModal">
+                            Массовые действия
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    {% if page_obj %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30px;">
+                                        <input type="checkbox" id="select-all">
+                                    </th>
+                                    <th>ID</th>
+                                    <th>Пользователь</th>
+                                    <th>Тема</th>
+                                    <th>Статус</th>
+                                    <th>Приоритет</th>
+                                    <th>Обновлено</th>
+                                    <th>Ответственный</th>
+                                    <th>Непрочитано</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ticket in page_obj %}
+                                <tr class="{% if ticket.status == 'open' %}table-warning{% endif %}
+                                          {% if ticket.priority == 'high' %}table-danger{% endif %}">
+                                    <td>
+                                        <input type="checkbox" name="ticket_ids" value="{{ ticket.ticket_id }}"
+                                               class="ticket-checkbox">
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'ticket_detail' ticket.ticket_id %}" class="fw-bold">
+                                            {{ ticket.ticket_id }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if ticket.user_photo %}
+                                            <img src="{{ ticket.user_photo }}" class="rounded-circle me-2"
+                                                 width="30" height="30" alt="{{ ticket.user_name }}">
+                                            {% endif %}
+                                            {{ ticket.user_name }}
+                                        </div>
+                                    </td>
+                                    <td>{{ ticket.subject|truncatechars:50 }}</td>
+                                    <td>
+                                        <span class="badge
+                                            {% if ticket.status == 'open' %}bg-warning
+                                            {% elif ticket.status == 'answered' %}bg-success
+                                            {% elif ticket.status == 'waiting' %}bg-danger
+                                            {% else %}bg-secondary{% endif %}">
+                                            {{ ticket.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge
+                                            {% if ticket.priority == 'low' %}bg-secondary
+                                            {% elif ticket.priority == 'medium' %}bg-info
+                                            {% elif ticket.priority == 'high' %}bg-warning
+                                            {% else %}bg-danger{% endif %}">
+                                            {{ ticket.get_priority_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small>{{ ticket.updated_at|date:"d.m.Y H:i" }}</small>
+                                    </td>
+                                    <td>
+                                        {% if ticket.admin %}
+                                        <span class="badge bg-dark">{{ ticket.admin.username }}</span>
+                                        {% else %}
+                                        <span class="badge bg-light text-dark">Не назначен</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% with unread=ticket.get_unread_messages_count %}
+                                        {% if unread > 0 %}
+                                        <span class="badge bg-danger">{{ unread }}</span>
+                                        {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Пагинация -->
+                    {% if page_obj.has_other_pages %}
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in current_filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Назад</a>
+                            </li>
+                            {% endif %}
+
+                            {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                            {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% for key, value in current_filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ num }}</a>
+                            </li>
+                            {% endif %}
+                            {% endfor %}
+
+                            {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in current_filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Вперед</a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-center py-5">
+                        <h5>Обращений не найдено</h5>
+                        <p class="text-muted">Попробуйте изменить параметры фильтрации</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно массовых действий -->
+<div class="modal fade" id="bulkActionsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Массовые действия</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form method="post" action="{% url 'bulk_action' %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Действие:</label>
+                        <select name="action" class="form-select" id="bulk-action-select">
+                            <option value="">Выберите действие</option>
+                            <option value="assign_to_me">Назначить на меня</option>
+                            <option value="change_status">Изменить статус</option>
+                            <option value="add_tag">Добавить тег</option>
+                        </select>
+                    </div>
+
+                    <!-- Дополнительные поля в зависимости от выбора -->
+                    <div id="status-field" style="display: none;">
+                        <label class="form-label">Новый статус:</label>
+                        <select name="new_status" class="form-select">
+                            {% for code, name in status_choices %}
+                            <option value="{{ code }}">{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div id="tag-field" style="display: none;">
+                        <label class="form-label">Тег:</label>
+                        <select name="tag_id" class="form-select">
+                            {% for tag in all_tags %}
+                            <option value="{{ tag.id }}">{{ tag.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">Выполнить</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Выделение всех чекбоксов
+document.getElementById('select-all').addEventListener('change', function(e) {
+    document.querySelectorAll('.ticket-checkbox').forEach(cb => {
+        cb.checked = e.target.checked;
+    });
+});
+
+// Показ/скрытие дополнительных полей в модальном окне
+document.getElementById('bulk-action-select').addEventListener('change', function(e) {
+    document.getElementById('status-field').style.display = 'none';
+    document.getElementById('tag-field').style.display = 'none';
+
+    if (e.target.value === 'change_status') {
+        document.getElementById('status-field').style.display = 'block';
+    } else if (e.target.value === 'add_tag') {
+        document.getElementById('tag-field').style.display = 'block';
+    }
+});
+</script>
+{% endblock %}

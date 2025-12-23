@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Информация об обращении -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5>Информация об обращении</h5>
+                    <span class="badge bg-dark">{{ ticket.ticket_id }}</span>
+                </div>
+                <div class="card-body">
+                    <!-- Пользователь -->
+                    <div class="mb-4">
+                        <h6>Пользователь:</h6>
+                        <div class="d-flex align-items-center">
+                            {% if ticket.user_photo %}
+                            <img src="{{ ticket.user_photo }}" class="rounded-circle me-3"
+                                 width="50" height="50" alt="{{ ticket.user_name }}">
+                            {% endif %}
+                            <div>
+                                <strong>{{ ticket.user_name }}</strong><br>
+                                <small class="text-muted">ID: {{ ticket.user_id }}</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Формы управления -->
+                    <form method="post" class="mb-3">
+                        {% csrf_token %}
+                        <!-- Статус -->
+                        <div class="mb-3">
+                            <label class="form-label">Статус:</label>
+                            <select name="status" class="form-select">
+                                {% for code, name in ticket.STATUS_CHOICES %}
+                                <option value="{{ code }}" {% if ticket.status == code %}selected{% endif %}>
+                                    {{ name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Приоритет -->
+                        <div class="mb-3">
+                            <label class="form-label">Приоритет:</label>
+                            <select name="priority" class="form-select">
+                                {% for code, name in ticket.PRIORITY_CHOICES %}
+                                <option value="{{ code }}" {% if ticket.priority == code %}selected{% endif %}>
+                                    {{ name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Теги -->
+                        <div class="mb-3">
+                            <label class="form-label">Теги:</label>
+                            <select name="tags" class="form-select" multiple>
+                                {% for tag in all_tags %}
+                                <option value="{{ tag.id }}" {% if tag in ticket.tags.all %}selected{% endif %}>
+                                    {{ tag.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Удерживайте Ctrl для выбора нескольких тегов</small>
+                        </div>
+
+                        <!-- Ответственный -->
+                        <div class="mb-3">
+                            <label class="form-label">Ответственный:</label>
+                            <div class="d-flex align-items-center">
+                                {% if ticket.admin %}
+                                <span class="me-2">{{ ticket.admin.username }}</span>
+                                {% else %}
+                                <span class="me-2 text-muted">Не назначен</span>
+                                {% endif %}
+                                <button type="submit" name="assign_to_me" class="btn btn-sm btn-outline-primary">
+                                    Назначить на меня
+                                </button>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">Сохранить изменения</button>
+                    </form>
+
+                    <!-- Дополнительная информация -->
+                    <hr>
+                    <div class="small text-muted">
+                        <div>Создано: {{ ticket.created_at|date:"d.m.Y H:i" }}</div>
+                        <div>Обновлено: {{ ticket.updated_at|date:"d.m.Y H:i" }}</div>
+                        {% if ticket.closed_at %}
+                        <div>Закрыто: {{ ticket.closed_at|date:"d.m.Y H:i" }}</div>
+                        {% endif %}
+                        <div>Сообщений: {{ ticket.messages.count }}</div>
+                        <div>Группа: {{ ticket.vk_group.name }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- История переписки -->
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Переписка</h5>
+                </div>
+                <div class="card-body" style="max-height: 500px; overflow-y: auto;" id="chat-container">
+                    {% for message in messages %}
+                    <div class="mb-3 {% if message.is_admin %}text-end{% endif %}">
+                        <div class="d-flex {% if message.is_admin %}justify-content-end{% endif %}">
+                            {% if not message.is_admin %}
+                            <div class="flex-shrink-0 me-2">
+                                {% if ticket.user_photo %}
+                                <img src="{{ ticket.user_photo }}" class="rounded-circle"
+                                     width="30" height="30" alt="{{ ticket.user_name }}">
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            <div>
+                                <div class="alert {% if message.is_admin %}alert-primary{% else %}alert-secondary{% endif %} mb-1">
+                                    {{ message.text|linebreaks }}
+
+                                    {% if message.attachments %}
+                                    <div class="mt-2">
+                                        {% for attach in message.attachments %}
+                                        {% if attach.type == 'photo' %}
+                                        <img src="{{ attach.photo.sizes.2.url }}" class="img-thumbnail" style="max-height: 100px;">
+                                        {% elif attach.type == 'doc' %}
+                                        <div class="alert alert-light p-2 small">
+                                            📄 {{ attach.doc.title }} ({{ attach.doc.ext|upper }})
+                                        </div>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <small class="text-muted">
+                                    {% if message.is_admin %}
+                                    {{ message.admin_author.username }} •
+                                    {% endif %}
+                                    {{ message.created_at|date:"d.m.Y H:i" }}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-4">
+                        Нет сообщений
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Форма ответа -->
+            <div class="card">
+                <div class="card-header">
+                    <h5>Ответить</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <textarea name="response" class="form-control" rows="4"
+                                      placeholder="Введите ответ пользователю..." required></textarea>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                Отправить ответ
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Прокрутка чата вниз
+document.addEventListener('DOMContentLoaded', function() {
+    const chatContainer = document.getElementById('chat-container');
+    if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+});
+</script>
+{% endblock %}

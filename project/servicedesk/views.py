@@ -15,7 +15,7 @@ from project.servicedesk.serializers import GroupSerializer, UserSerializer
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render, get_object_or_404
 from django.contrib import messages
-from .models import VKMessage
+from .models import Message
 import requests
 
 
@@ -85,62 +85,190 @@ def vk_callback(request):
         return HttpResponse('error', status=500)
 
 
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.core.paginator import Paginator
+from django.db.models import Q, Count
+from django.utils import timezone
+from .models import Ticket, Message, Tag, VKGroup
+import requests
+
+
 def is_admin(user):
-    return user.is_staff
+    return user.is_staff or user.is_superuser
 
 
 @login_required
 @user_passes_test(is_admin)
-def message_list(request):
+def ticket_list(request):
+    """Список обращений с фильтрами"""
     status_filter = request.GET.get('status', '')
+    priority_filter = request.GET.get('priority', '')
+    assigned_filter = request.GET.get('assigned', '')
+    search_query = request.GET.get('q', '')
 
-    messages = VKMessage.objects.all()
+    tickets = Ticket.objects.all().prefetch_related('tags')
 
+    # Применяем фильтры
     if status_filter:
-        messages = messages.filter(status=status_filter)
+        tickets = tickets.filter(status=status_filter)
+    if priority_filter:
+        tickets = tickets.filter(priority=priority_filter)
+    if assigned_filter == 'me':
+        tickets = tickets.filter(admin=request.user)
+    elif assigned_filter == 'unassigned':
+        tickets = tickets.filter(admin__isnull=True)
+
+    # Поиск
+    if search_query:
+        tickets = tickets.filter(
+            Q(ticket_id__icontains=search_query) |
+            Q(user_name__icontains=search_query) |
+            Q(subject__icontains=search_query) |
+            Q(messages__text__icontains=search_query)
+        ).distinct()
+
+    # Пагинация
+    paginator = Paginator(tickets.order_by('-updated_at'), 25)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
 
     context = {
-        'messages': messages,
-        'status_choices': VKMessage.STATUS_CHOICES,
-        'current_filter': status_filter
+        'page_obj': page_obj,
+        'status_choices': Ticket.STATUS_CHOICES,
+        'priority_choices': Ticket.PRIORITY_CHOICES,
+        'current_filters': {
+            'status': status_filter,
+            'priority': priority_filter,
+            'assigned': assigned_filter,
+            'q': search_query,
+        },
+        'unread_counts': get_unread_counts(),
     }
-    return render(request, 'support/message_list.html', context)
+    return render(request, 'support/ticket_list.html', context)
 
 
 @login_required
 @user_passes_test(is_admin)
-def message_detail(request, message_id):
-    message = get_object_or_404(VKMessage, id=message_id)
+def ticket_detail(request, ticket_id):
+    """Детальная страница обращения"""
+    ticket = get_object_or_404(Ticket.objects.prefetch_related('tags', 'messages'), ticket_id=ticket_id)
 
     if request.method == 'POST':
-        response_text = request.POST.get('response', '').strip()
+        # Отправка ответа
+        if 'response' in request.POST:
+            response_text = request.POST.get('response', '').strip()
 
-        if response_text:
-            # Отправляем ответ через API ВКонтакте
-            success = send_vk_message(
-                user_id=message.from_id,
-                text=response_text,
-                access_token=message.vk_group.access_token
-            )
+            if response_text:
+                # Отправляем ответ через API ВКонтакте
+                success = send_vk_message(
+                    user_id=ticket.user_id,
+                    text=response_text,
+                    access_token=ticket.vk_group.access_token
+                )
 
-            if success:
-                message.response = response_text
-                message.status = 'answered'
-                message.admin = request.user
-                message.response_date = datetime.now()
-                message.save()
-                messages.success(request, 'Ответ успешно отправлен')
-            else:
-                messages.error(request, 'Ошибка при отправке ответа')
+                if success:
+                    # Сохраняем сообщение от администратора
+                    Message.objects.create(
+                        ticket=ticket,
+                        text=response_text,
+                        is_admin=True,
+                        admin_author=request.user,
+                        is_read=True
+                    )
+
+                    # Обновляем статус обращения
+                    ticket.status = 'answered'
+                    ticket.admin = request.user
+                    ticket.updated_at = timezone.now()
+                    ticket.save()
+
+                    messages.success(request, 'Ответ успешно отправлен')
+                else:
+                    messages.error(request, 'Ошибка при отправке ответа')
 
         # Обновление статуса
-        new_status = request.POST.get('status')
-        if new_status and new_status != message.status:
-            message.status = new_status
-            message.save()
-            messages.success(request, 'Статус обновлен')
+        elif 'status' in request.POST:
+            new_status = request.POST.get('status')
+            if new_status and new_status != ticket.status:
+                ticket.status = new_status
+                if new_status == 'closed':
+                    ticket.closed_at = timezone.now()
+                ticket.save()
+                messages.success(request, 'Статус обновлен')
 
-    return render(request, 'support/message_detail.html', {'message': message})
+        # Назначение на себя
+        elif 'assign_to_me' in request.POST:
+            ticket.admin = request.user
+            ticket.save()
+            messages.success(request, 'Обращение назначено на вас')
+
+        # Обновление тегов
+        elif 'tags' in request.POST:
+            tag_ids = request.POST.getlist('tags')
+            ticket.tags.set(tag_ids)
+            messages.success(request, 'Теги обновлены')
+
+        # Обновление приоритета
+        elif 'priority' in request.POST:
+            new_priority = request.POST.get('priority')
+            if new_priority:
+                ticket.priority = new_priority
+                ticket.save()
+                messages.success(request, 'Приоритет обновлен')
+
+    # Помечаем сообщения пользователя как прочитанные
+    ticket.messages.filter(is_admin=False, is_read=False).update(is_read=True)
+
+    context = {
+        'ticket': ticket,
+        'messages': ticket.messages.all(),
+        'all_tags': Tag.objects.all(),
+    }
+    return render(request, 'support/ticket_detail.html', context)
+
+
+@login_required
+@user_passes_test(is_admin)
+def bulk_action(request):
+    """Массовые действия с обращениями"""
+    if request.method == 'POST':
+        ticket_ids = request.POST.getlist('ticket_ids')
+        action = request.POST.get('action')
+
+        if ticket_ids and action:
+            tickets = Ticket.objects.filter(ticket_id__in=ticket_ids)
+
+            if action == 'assign_to_me':
+                tickets.update(admin=request.user)
+                messages.success(request, f'Назначено {len(tickets)} обращений')
+            elif action == 'change_status':
+                new_status = request.POST.get('new_status')
+                if new_status:
+                    tickets.update(status=new_status)
+                    if new_status == 'closed':
+                        tickets.update(closed_at=timezone.now())
+                    messages.success(request, f'Обновлен статус {len(tickets)} обращений')
+            elif action == 'add_tag':
+                tag_id = request.POST.get('tag_id')
+                if tag_id:
+                    tag = get_object_or_404(Tag, id=tag_id)
+                    for ticket in tickets:
+                        ticket.tags.add(tag)
+                    messages.success(request, f'Добавлен тег к {len(tickets)} обращениям')
+
+    return redirect('ticket_list')
+
+
+def get_unread_counts():
+    """Получение количества непрочитанных сообщений по статусам"""
+    return {
+        'open': Ticket.objects.filter(status='open').count(),
+        'answered': Ticket.objects.filter(status='answered').count(),
+        'waiting': Ticket.objects.filter(status='waiting').count(),
+        'total_unread': Message.objects.filter(is_admin=False, is_read=False).count(),
+    }
 
 
 def send_vk_message(user_id, text, access_token):
