@@ -28,16 +28,16 @@ def handle_message_new(data):
     group = VKGroup.objects.get(group_id=group_id)
 
     # Получаем информацию об отправителе
-    user_info = get_vk_user_info(message_data['from_id'], group.access_token)
+    user_info = get_vk_user_info(message['from_id'], group.access_token)
 
     # Сохраняем сообщение
     VKMessage.objects.create(
-        message_id=message_data['id'],
-        from_id=message_data['from_id'],
-        from_name=user_info.get('name', f'Пользователь {message_data["from_id"]}'),
-        text=message_data.get('text', ''),
-        attachments=message_data.get('attachments', []),
-        date=datetime.fromtimestamp(message_data['date']),
+        message_id=message['id'],
+        from_id=message['from_id'],
+        from_name=user_info.get('name', f'Пользователь {message["from_id"]}'),
+        text=message.get('text', ''),
+        attachments=message.get('attachments', []),
+        date=datetime.fromtimestamp(message['date']),
         vk_group=group
     )
 
