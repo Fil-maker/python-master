@@ -32,7 +32,7 @@ class Ticket(models.Model):
     ticket_id = models.CharField(max_length=20, unique=True, verbose_name="Номер обращения")
     user_id = models.IntegerField(verbose_name="ID пользователя ВК")
     user_name = models.CharField(max_length=255, verbose_name="Имя пользователя")
-    user_photo = models.URLField(blank=True, verbose_name="Фото пользователя")
+    user_photo = models.URLField(max_length=2048, blank=True, verbose_name="Фото пользователя")
     subject = models.CharField(max_length=255, default="Без темы", verbose_name="Тема обращения")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium')
