@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -11,12 +10,6 @@ from rest_framework import permissions, viewsets
 
 from project.servicedesk.event_handlers import handle_message_new
 from project.servicedesk.serializers import GroupSerializer, UserSerializer
-
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.shortcuts import render, get_object_or_404
-from django.contrib import messages
-from .models import Message
-import requests
 
 
 class UserViewSet(viewsets.ModelViewSet):
