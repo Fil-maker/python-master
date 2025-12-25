@@ -96,12 +96,6 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4>Обращения</h4>
-                    <div>
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                                data-bs-target="#bulkActionsModal">
-                            Массовые действия
-                        </button>
-                    </div>
                 </div>
 
                 <div class="card-body">
@@ -110,9 +104,6 @@
                         <table class="table table-hover">
                             <thead>
                                 <tr>
-                                    <th style="width: 30px;">
-                                        <input type="checkbox" id="select-all">
-                                    </th>
                                     <th>ID</th>
                                     <th>Пользователь</th>
                                     <th>Тема</th>
@@ -127,10 +118,6 @@
                                 {% for ticket in page_obj %}
                                 <tr class="{% if ticket.status == 'open' %}table-warning{% endif %}
                                           {% if ticket.priority == 'high' %}table-danger{% endif %}">
-                                    <td>
-                                        <input type="checkbox" name="ticket_ids" value="{{ ticket.ticket_id }}"
-                                               class="ticket-checkbox">
-                                    </td>
                                     <td>
                                         <a href="{% url 'ticket_detail' ticket.ticket_id %}" class="fw-bold">
                                             {{ ticket.ticket_id }}

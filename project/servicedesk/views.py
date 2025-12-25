@@ -7,6 +7,7 @@ from django.conf import settings
 import logging
 from django.contrib.auth.models import Group, User
 from rest_framework import permissions, viewsets
+from rest_framework.authtoken.models import Token
 
 from project.servicedesk.event_handlers import handle_message_new
 from project.servicedesk.serializers import GroupSerializer, UserSerializer
@@ -252,6 +253,15 @@ def bulk_action(request):
                     messages.success(request, f'Добавлен тег к {len(tickets)} обращениям')
 
     return redirect('ticket_list')
+
+
+@login_required
+def go_to_main(request):
+    return redirect('ticket_list')
+
+
+def go_login(request):
+    return redirect('/auth/login')
 
 
 def get_unread_counts():

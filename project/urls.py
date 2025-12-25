@@ -30,6 +30,8 @@ urlpatterns = [
     path('', views.ticket_list, name='ticket_list'),
     path('tickets/bulk-action/', views.bulk_action, name='bulk_action'),
     path('tickets/<str:ticket_id>/', views.ticket_detail, name='ticket_detail'),
+    path('accounts/login/', views.go_login, name="go_login"),
+    path('accounts/profile/', views.go_to_main, name="redirect_to_main"),
     path('admin/', admin.site.urls),
     # path("api/", include(router.urls)),
     path("auth/", include("rest_framework.urls", namespace="rest_framework")),

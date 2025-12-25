@@ -53,19 +53,6 @@
                             </select>
                         </div>
 
-                        <!-- Теги -->
-                        <div class="mb-3">
-                            <label class="form-label">Теги:</label>
-                            <select name="tags" class="form-select" multiple>
-                                {% for tag in all_tags %}
-                                <option value="{{ tag.id }}" {% if tag in ticket.tags.all %}selected{% endif %}>
-                                    {{ tag.name }}
-                                </option>
-                                {% endfor %}
-                            </select>
-                            <small class="text-muted">Удерживайте Ctrl для выбора нескольких тегов</small>
-                        </div>
-
                         <!-- Ответственный -->
                         <div class="mb-3">
                             <label class="form-label">Ответственный:</label>
